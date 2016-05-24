@@ -17,6 +17,17 @@ tmp_path = '/data/tmp'
 
 def setConfig(env, config, config_path, config_name):
     try:
+        config_target = config_path.rstrip('/') + '/' + config_name
+        if env == "":
+            if os.path.isfile(config_target):
+                logger.debug('start to remove old file %s' % config_target)
+            os.remove(config_target)
+            try:
+                shutil.move(config, config_target)
+                return
+            except Exception, e:
+                logger.error('Replace new file error: %s  -- %s, error is : %s' % (config, config_target, str(e)))
+                return
         env = json.loads(env.replace("u'", "'").replace("'", '"'))
         for item in env:
             with open(config) as o:
@@ -26,7 +37,6 @@ def setConfig(env, config, config_path, config_name):
                 out = out.replace(key, value)
                 if not os.path.exists(config_path):
                     os.mkdir(config_path)
-                config_target = config_path.rstrip('/') + '/' + config_name
                 with open(config_target, 'w') as config_file:
                     config_file.write(out)
     except Exception, e:
