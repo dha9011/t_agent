@@ -15,30 +15,55 @@ import json
 logger = create_logger(__name__)
 tmp_path = '/data/tmp'
 
+def _setConfig(env, config_url, config_path, config_name):
+    try:
+    #add modify config function
+        if config_url and config_path and config_name:
+            config_url = config_url.split(',')
+            config_path = config_path.split(',')
+            config_name = config_name.split(',')
+            print config_name
+            print config_path
+            print config_url
+            for i in range(len(config_url)):
+                s, config, v = download_file(config_url[i], config_name, None)
+                if s:
+                    # return json.dumps({'status': s, 'content': f})
+                    return s, config
+                s ,f = setConfig(env, config, config_path[i], config_name[i])
+                if s:
+                    return s, f
+        else:
+            return 20, 'Modify config file failed'
+    except Exception, e:
+        logger.error('Error when modify config: %s' % (str(e)))
+        return 20, 'Modify config file failed'
+
 def setConfig(env, config, config_path, config_name):
     try:
         config_target = config_path.rstrip('/') + '/' + config_name
+        if os.path.isfile(config_target):
+            logger.debug('start to remove old file %s' % config_target)
+        os.remove(config_target)
         if env == "":
-            if os.path.isfile(config_target):
-                logger.debug('start to remove old file %s' % config_target)
-            os.remove(config_target)
             try:
                 shutil.move(config, config_target)
-                return
+                return 0, ""
             except Exception, e:
                 logger.error('Replace new file error: %s  -- %s, error is : %s' % (config, config_target, str(e)))
-                return
+                return 20, 'Modify config file failed'
         env = json.loads(env.replace("u'", "'").replace("'", '"'))
-        for item in env:
-            with open(config) as o:
-                out = o.read()
+        with open(config) as o:
+            out = o.read()
+            for item in env:
                 key = item['varKey']
                 value = item['value']
                 out = out.replace(key, value)
-                if not os.path.exists(config_path):
-                    os.mkdir(config_path)
-                with open(config_target, 'w') as config_file:
-                    config_file.write(out)
+            if not os.path.exists(config_path):
+                os.mkdir(config_path)
+            with open(config_target, 'w') as config_file:
+                config_file.write(out)
+        return 0, ""
     except Exception, e:
         logger.error('Error when modify config: %s' % (str(e)))
         return 20, 'Modify config file failed'
@@ -76,9 +101,9 @@ def build_code(app_name, download_url, config_url, version_url, code_file, build
         if s:
             logger.error('Error when uncompress file %s: %s' % (f, c))
             return 1, 'os uncompress error'
-        s, c = getstatusoutput('rsync -avrtopgl %s %s %s' % (exclude, src_dir.rstrip('/') + '/', app_path.rstrip('/')))
+        s, c = getstatusoutput('rsync -avrtopgl --delete %s %s %s' % (exclude, src_dir.rstrip('/') + '/', app_path.rstrip('/')))
         if s:
-            logger.error('Error when rsync file %s: %s' % (f, c))
+            logger.error('Error when --delete rsync file %s: %s' % (f, c))
             return 1, 'os rsync error'
         print 'rsync -avrtopgl %s %s %s' % (exclude, src_dir.rstrip('/') + '/', app_path.rstrip('/'))
         try:
@@ -114,13 +139,9 @@ def build_code(app_name, download_url, config_url, version_url, code_file, build
         else:
             f_handle.write(v)
 
-    #add modify config function
-    s, config, v = download_file(config_url, config_name, version_url)
+    s, f = _setConfig(env, config_url, config_path, config_name)
     if s:
-        # return json.dumps({'status': s, 'content': f})
-        return s, f
-
-    setConfig(env, config, config_path, config_name)
+        return {'status': s, 'content': f}
     ####
 
     if restart == "True":
